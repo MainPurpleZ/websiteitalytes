@@ -337,6 +337,24 @@
             margin-left: 2px;
         }
 
+        /* Added style for the Dima History text block */
+        .dima-history {
+            font-size: 24px;
+            font-weight: bold;
+            color: var(--ink-color);
+            border: 4px solid var(--ink-color);
+            padding: 15px 30px;
+            margin: 20px 0;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            transform: rotate(-2deg);
+            background-color: rgba(255,255,255,0.4);
+            box-shadow: 2px 2px 0px rgba(0,0,0,0.1);
+            animation: float-paper 5s ease-in-out infinite reverse;
+            text-align: center;
+            cursor: default;
+        }
+
         @media (max-width: 600px) {
             .document-container {
                 padding: 30px 20px;
@@ -386,7 +404,7 @@
         <div class="image-section">
             <img src="image1.png" alt="[ATTACHMENT 01: image1.png]" class="evidence-image" onerror="this.style.display='block'">
             <img src="image2.png" alt="[ATTACHMENT 02: image2.png]" class="evidence-image" onerror="this.style.display='block'">
-            <img src="image3.png" alt="[ATTACHMENT 03: image3.png]" class="evidence-image" onerror="this.style.display='block'">
+            <div class="dima-history">HISTORY OF DIMA</div>
         </div>
 
         <p class="typewriter-text" id="para2">
