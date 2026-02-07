@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CONFIDENTIAL - ITALYTES</title>
+    <style>
+        :root {
+            --paper-color: #f3f0e8;
+            --ink-color: #2b2b2b;
+            --redaction-color: #0d0d0d;
+            --highlight-color: rgba(255, 230, 0, 0.5);
+            --scan-line-color: rgba(0, 0, 0, 0.1);
+        }
+
+        body {
+            background-color: #101010;
+            font-family: 'Courier Prime', 'Courier New', Courier, monospace;
+            margin: 0;
+            padding: 40px 20px;
+            display: flex;
+            justify-content: center;
+            min-height: 100vh;
+            color: var(--ink-color);
+            overflow-x: hidden;
+        }
+
+        /* --- Post-Processing Effects --- */
+        
+        /* CRT Scanlines */
+        .scanlines {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: linear-gradient(
+                to bottom,
+                rgba(255,255,255,0),
+                rgba(255,255,255,0) 50%,
+                rgba(0,0,0,0.1) 50%,
+                rgba(0,0,0,0.1)
+            );
+            background-size: 100% 4px;
+            pointer-events: none;
+            z-index: 100;
+            opacity: 0.6;
+            animation: scanlineMove 0.4s linear infinite;
+        }
+
+        /* Vignette & Chromatic Aberration Simulation */
+        .vignette {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: radial-gradient(circle, transparent 50%, rgba(0,0,0,0.8) 100%);
+            pointer-events: none;
+            z-index: 101;
+        }
+
+        /* Animated Grain */
+        .grain {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 99;
+            opacity: 0.08;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='1'/%3E%3C/svg%3E");
+            animation: grain-flicker 0.2s infinite steps(4);
+        }
+
+        /* --- Document Styles --- */
+
+        .document-container {
+            background-color: var(--paper-color);
+            width: 100%;
+            max-width: 800px;
+            padding: 80px 60px;
+            box-shadow: 
+                0 1px 1px rgba(0,0,0,0.15), 
+                0 10px 0 -5px #e0e0e0, 
+                0 10px 1px -4px rgba(0,0,0,0.15), 
+                0 20px 0 -10px #e0e0e0, 
+                0 20px 1px -9px rgba(0,0,0,0.15),
+                0 0 50px rgba(0,0,0,0.8);
+            position: relative;
+            background-image: 
+                linear-gradient(90deg, transparent 99%, rgba(0,0,0,0.03) 100%),
+                linear-gradient(transparent 99%, rgba(0,0,0,0.03) 100%);
+            background-size: 20px 20px;
+            border: 1px solid #dcdcdc;
+            opacity: 0; /* Hidden initially for animation */
+            animation: doc-enter 1.5s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+            transform-origin: center top;
+
+            /* FIX: Use flexbox for solid vertical stacking */
+            display: flex;
+            flex-direction: column;
+            align-items: center; /* Centers items horizontally */
+        }
+
+        h1 {
+            text-transform: uppercase;
+            text-align: center;
+            font-size: 28px;
+            margin-bottom: 50px;
+            letter-spacing: 4px;
+            border-bottom: 2px solid #1a1a1a;
+            padding-bottom: 10px;
+            /* FIX: Removed position: relative/left/transform centering hack */
+            display: inline-block; /* Keeps border width equal to text width */
+        }
+
+        .metadata {
+            margin-bottom: 40px;
+            font-size: 14px;
+            border: 1px solid #999;
+            padding: 15px;
+            /* FIX: Ensure it behaves like a block to avoid flow issues */
+            display: block; 
+            width: fit-content;
+            background: rgba(255,255,255,0.4);
+            backdrop-filter: blur(2px);
+            text-align: left; /* Keep internal text left-aligned */
+        }
+        
+        /* Ensure paragraphs align nicely in the flex container */
+        p {
+            width: 100%;
+            text-align: justify;
+        }
+
+        .typewriter-text {
+            font-size: 17px;
+            line-height: 1.8;
+            margin-bottom: 25px;
+            visibility: hidden; /* Controlled by JS */
+        }
+
+        /* The Redaction Effect */
+        .redacted {
+            background-color: var(--redaction-color);
+            color: var(--redaction-color);
+            padding: 2px 4px;
+            border-radius: 2px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 1px 1px 0px rgba(0,0,0,0.2);
+            user-select: none; /* Prefer click to reveal, but allow select via JS class */
+        }
+
+        .redacted.revealed {
+            background-color: transparent;
+            color: red; /* Highlight revealed text in red ink style */
+            text-decoration: underline wavy red;
+        }
+        
+        .redacted::selection {
+            background-color: var(--highlight-color);
+            color: black;
+        }
+
+        .redacted:hover {
+            opacity: 0.95;
+            box-shadow: 0 0 5px rgba(0,0,0,0.5);
+        }
+
+        /* Stamp Animation */
+        .stamp {
+            position: absolute;
+            top: 40px;
+            right: 40px;
+            border: 5px double #c0392b;
+            color: #c0392b;
+            font-weight: 900;
+            font-size: 24px;
+            padding: 10px 20px;
+            transform: rotate(-15deg) scale(2);
+            opacity: 0;
+            z-index: 5;
+            pointer-events: none;
+            font-family: sans-serif;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            mix-blend-mode: multiply;
+            animation: stamp-slam 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards 1s;
+        }
+
+        .image-section {
+            display: flex;
+            flex-direction: column;
+            gap: 30px;
+            margin: 40px 0;
+            align-items: center;
+            perspective: 1000px;
+            opacity: 0;
+            animation: fade-in 1s ease forwards 2.5s; /* Delay until after text */
+            width: 100%; /* Ensure it takes full width for flexbox centering */
+        }
+
+        .evidence-image {
+            width: 100%;
+            max-width: 550px;
+            height: auto;
+            border: 1px solid #ccc;
+            padding: 12px 12px 40px 12px;
+            background-color: #fff;
+            box-shadow: 2px 4px 12px rgba(0,0,0,0.15);
+            display: block;
+            filter: sepia(30%) contrast(110%) brightness(0.9);
+            /* Floating Animation */
+            animation: float-paper 6s ease-in-out infinite;
+        }
+
+        .evidence-image:nth-of-type(1) { transform: rotate(-2deg); animation-delay: 0s; }
+        .evidence-image:nth-of-type(2) { transform: rotate(1.5deg); animation-delay: 2s; }
+        .evidence-image:nth-of-type(3) { transform: rotate(-1deg); animation-delay: 4s; }
+
+        .evidence-image:hover {
+            transform: scale(1.02) rotate(0deg);
+            box-shadow: 5px 10px 20px rgba(0,0,0,0.3);
+            z-index: 20;
+            cursor: pointer;
+            animation-play-state: paused;
+            filter: sepia(0%) contrast(100%);
+        }
+        
+        .footer-note {
+            margin-top: 60px;
+            padding-top: 20px;
+            border-top: 2px solid #1a1a1a;
+            font-size: 11px;
+            text-align: center;
+            opacity: 0.7;
+            letter-spacing: 1px;
+            width: 100%;
+        }
+
+        /* --- Animations --- */
+
+        @keyframes doc-enter {
+            0% { opacity: 0; transform: translateY(50px) scale(0.98); }
+            100% { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        @keyframes stamp-slam {
+            0% { opacity: 0; transform: rotate(-15deg) scale(3); }
+            80% { opacity: 0.7; transform: rotate(-15deg) scale(0.9); }
+            100% { opacity: 0.85; transform: rotate(-15deg) scale(1); }
+        }
+
+        @keyframes scanlineMove {
+            0% { background-position: 0 0; }
+            100% { background-position: 0 4px; }
+        }
+
+        @keyframes grain-flicker {
+            0% { transform: translate(0,0); }
+            25% { transform: translate(-2%, -2%); }
+            50% { transform: translate(2%, 2%); }
+            75% { transform: translate(-2%, 2%); }
+            100% { transform: translate(2%, -2%); }
+        }
+
+        @keyframes float-paper {
+            0%, 100% { transform: translateY(0) rotate(-2deg); }
+            50% { transform: translateY(-5px) rotate(-2deg); }
+        }
+        /* Override float for 2nd and 3rd images to keep their rotations */
+        .evidence-image:nth-of-type(2) { animation-name: float-paper-2; }
+        @keyframes float-paper-2 {
+            0%, 100% { transform: translateY(0) rotate(1.5deg); }
+            50% { transform: translateY(-5px) rotate(1.5deg); }
+        }
+        .evidence-image:nth-of-type(3) { animation-name: float-paper-3; }
+        @keyframes float-paper-3 {
+            0%, 100% { transform: translateY(0) rotate(-1deg); }
+            50% { transform: translateY(-5px) rotate(-1deg); }
+        }
+
+        @keyframes fade-in {
+            to { opacity: 1; }
+        }
+
+        @keyframes blink-cursor {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
+
+        .cursor {
+            display: inline-block;
+            width: 8px;
+            height: 18px;
+            background-color: var(--ink-color);
+            animation: blink-cursor 0.8s infinite;
+            vertical-align: middle;
+            margin-left: 2px;
+        }
+
+        @media (max-width: 600px) {
+            .document-container {
+                padding: 30px 20px;
+            }
+            .stamp {
+                font-size: 16px;
+                top: 20px;
+                right: 20px;
+                border-width: 3px;
+            }
+            .evidence-image {
+                padding: 8px 8px 25px 8px;
+            }
+            h1 {
+                font-size: 22px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="scanlines"></div>
+    <div class="vignette"></div>
+    <div class="grain"></div>
+
+    <div class="document-container">
+        <div class="stamp">CLASSIFIED</div>
+        
+        <h1>SUBJECT: ITALYTES</h1>
+
+        <div class="metadata">
+            <strong>DATE:</strong> 202X-XX-XX<br>
+            <strong>SOURCE:</strong> [REDACTED]<br>
+            <strong>CLEARANCE:</strong> LEVEL 4
+        </div>
+        
+        <!-- Document Content with Typewriter classes -->
+        <p class="typewriter-text" id="para1">
+            "Hello, we're <span class="redacted" title="Click to reveal">ItalyTes Team</span> and we are developers of these games:"
+        </p>
+
+        <div class="image-section">
+            <img src="image1.png" alt="[ATTACHMENT 01: image1.png]" class="evidence-image" onerror="this.style.display='block'">
+            <img src="image2.png" alt="[ATTACHMENT 02: image2.png]" class="evidence-image" onerror="this.style.display='block'">
+            <img src="image3.png" alt="[ATTACHMENT 03: image3.png]" class="evidence-image" onerror="this.style.display='block'">
+        </div>
+
+        <p class="typewriter-text" id="para2">
+            "These games are was made for <span class="redacted" title="Click to reveal">joke</span>, none of actions are real and serious. Contact <span class="redacted" title="Click to reveal">ItalyTes Team (Us)</span>"
+        </p>
+
+        <div class="footer-note">
+            <p>CASE FILE ID: 99-X-2093 // INTERNAL USE ONLY // DO NOT DISTRIBUTE</p>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            
+            // --- Redaction Click Handler ---
+            // Better UX for mobile: click to toggle, instead of just select
+            const redactedElements = document.querySelectorAll('.redacted');
+            redactedElements.forEach(el => {
+                el.addEventListener('click', () => {
+                    el.classList.toggle('revealed');
+                });
+            });
+
+            // --- Typewriter Effect ---
+            const typeWriterSpeed = 40; // ms per character
+            
+            function typeWriter(elementId, delayStart) {
+                const element = document.getElementById(elementId);
+                if (!element) return;
+
+                // Clone the nodes so we can clear the element and append them back one by one
+                const nodes = Array.from(element.childNodes);
+                element.innerHTML = ''; 
+                element.style.visibility = 'visible';
+                
+                // Add cursor
+                const cursor = document.createElement('span');
+                cursor.className = 'cursor';
+                element.appendChild(cursor);
+
+                let currentNodeIndex = 0;
+                let currentTextIndex = 0;
+                
+                setTimeout(() => {
+                    function type() {
+                        if (currentNodeIndex >= nodes.length) {
+                            cursor.remove(); // Finished typing this paragraph
+                            return;
+                        }
+
+                        const node = nodes[currentNodeIndex];
+
+                        if (node.nodeType === Node.TEXT_NODE) {
+                            const text = node.textContent;
+                            if (currentTextIndex < text.length) {
+                                // Insert text before cursor
+                                cursor.insertAdjacentText('beforebegin', text.charAt(currentTextIndex));
+                                currentTextIndex++;
+                                setTimeout(type, typeWriterSpeed + (Math.random() * 20)); // Random variance for realism
+                            } else {
+                                currentNodeIndex++;
+                                currentTextIndex = 0;
+                                setTimeout(type, typeWriterSpeed);
+                            }
+                        } else if (node.nodeType === Node.ELEMENT_NODE) {
+                            // If it's an element (like span.redacted), we append the whole element instantly
+                            cursor.insertAdjacentElement('beforebegin', node);
+                            currentNodeIndex++;
+                            setTimeout(type, typeWriterSpeed * 5); // Slight pause after inserting a "block"
+                        }
+                    }
+                    type();
+                }, delayStart);
+            }
+
+            // Start typing
+            typeWriter('para1', 1500); // Start after stamp slam
+            typeWriter('para2', 4000); // Start later
+        });
+    </script>
+</body>
+</html>
