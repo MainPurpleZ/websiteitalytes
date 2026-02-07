@@ -215,6 +215,7 @@
             filter: sepia(30%) contrast(110%) brightness(0.9);
             /* Floating Animation */
             animation: float-paper 6s ease-in-out infinite;
+            transition: transform 0.3s ease; /* For smooth hover/click */
         }
 
         .evidence-image:nth-of-type(1) { transform: rotate(-2deg); animation-delay: 0s; }
@@ -225,7 +226,7 @@
             transform: scale(1.02) rotate(0deg);
             box-shadow: 5px 10px 20px rgba(0,0,0,0.3);
             z-index: 20;
-            cursor: pointer;
+            cursor: zoom-in; /* Indicates clickability */
             animation-play-state: paused;
             filter: sepia(0%) contrast(100%);
         }
@@ -239,6 +240,40 @@
             opacity: 0.7;
             letter-spacing: 1px;
             width: 100%;
+        }
+
+        /* Lightbox Viewer Styles */
+        #lightbox {
+            display: none; /* Hidden by default */
+            position: fixed;
+            z-index: 2000; /* Above everything */
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.9);
+            justify-content: center;
+            align-items: center;
+            animation: fadeIn 0.3s;
+        }
+
+        #lightbox-img {
+            max-width: 90%;
+            max-height: 90%;
+            border: 10px solid #fff;
+            box-shadow: 0 0 50px rgba(0,0,0,0.8);
+            transform: scale(0.9);
+            animation: zoomIn 0.3s forwards;
+        }
+
+        @keyframes zoomIn {
+            to { transform: scale(1); }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
         }
 
         /* --- Animations --- */
@@ -327,6 +362,11 @@
     <div class="vignette"></div>
     <div class="grain"></div>
 
+    <!-- Lightbox Viewer -->
+    <div id="lightbox">
+        <img id="lightbox-img" src="" alt="Evidence Fullscreen">
+    </div>
+
     <div class="document-container">
         <div class="stamp">CLASSIFIED</div>
         
@@ -362,12 +402,29 @@
         document.addEventListener('DOMContentLoaded', () => {
             
             // --- Redaction Click Handler ---
-            // Better UX for mobile: click to toggle, instead of just select
             const redactedElements = document.querySelectorAll('.redacted');
             redactedElements.forEach(el => {
                 el.addEventListener('click', () => {
                     el.classList.toggle('revealed');
                 });
+            });
+
+            // --- Lightbox Handler ---
+            const lightbox = document.getElementById('lightbox');
+            const lightboxImg = document.getElementById('lightbox-img');
+            const images = document.querySelectorAll('.evidence-image');
+
+            // Open lightbox on image click
+            images.forEach(img => {
+                img.addEventListener('click', () => {
+                    lightbox.style.display = 'flex';
+                    lightboxImg.src = img.src;
+                });
+            });
+
+            // Close lightbox on background click
+            lightbox.addEventListener('click', () => {
+                lightbox.style.display = 'none';
             });
 
             // --- Typewriter Effect ---
